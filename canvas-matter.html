@@ -1,0 +1,199 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+  <title>Play Web Wings</title>
+  <script type="text/javascript" src="matter.js"></script>
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+    }
+  </style>
+</head>
+<body>
+  <div id="screen">
+  </div>
+
+  <script type="text/javascript">
+  var Engine = Matter.Engine,
+      World = Matter.World,
+      Bodies = Matter.Bodies,
+      Bounds = Matter.Bounds,
+      Events = Matter.Events,
+      Vector = Matter.Vector;
+
+
+  var engine = Engine.create(document.getElementById('screen'));
+  var renderOptions = engine.render.options;
+      renderOptions.hasBounds = true;
+
+  var Slice = function (p0, p1) {
+    p0 = camera(p0);
+    p1 = camera(p1);
+    var x = (p1.x + p0.x) / 2,
+        y = (p1.y + p0.y) / 2,
+        dx = p1.x - p0.x,
+        dy = p1.y - p0.y,
+        angle = Math.atan2(dy, dx),
+        width = Math.round(Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)));
+        
+    return Bodies.rectangle(x, y, width, 10, { isStatic: true, angle: angle, restitution: 0 });
+  }
+
+
+  var hills = [],
+      bird = {};
+
+  function init () {
+    bird = new Bird(0, 100, {x: 1, y: 0});
+    hills = generateHills(5, 0, 20);
+    Engine.run(engine);
+    var viewportCentre = {
+      x: engine.render.options.width * 0.5,
+      y: engine.render.options.height * 0.5
+    };
+
+    Events.on(engine, 'beforeTick', function() {
+      // extend wolrd bounds as bird moves
+      engine.world.bounds.max = Vector.sub(mBird.position, {x: -500, y: -500});
+      engine.world.bounds.min = Vector.sub(mBird.position, {x: 500, y: 500});
+      
+      // if hill is needed, add it
+      if (!getHill(mBird.position.x + 100))
+        appendHill();
+
+      // center view
+      var render = engine.render;
+      Bounds.shift(render.bounds, {x: mBird.position.x - 100, y: 200});
+
+      if (window.collision)
+        mBird.force = {x: 0.0005, y: -0.0005};
+
+      if (!isPressed)
+        mBird.mass = 0.2;
+      else
+        mBird.mass = 1;
+
+      window.collision = false;
+    });
+
+    Events.on(engine, 'collisionActive', function(e) {
+      // if no user input + contact with ground, push bird
+      window.collision = true;
+    });
+  }
+
+  var sliceSize = 10;
+
+  // canvas spans from {-20, -50} to {940, 430} at first
+  // canvas always keeps the bird at 50 from left side
+  function cameraX (gameX) {
+    return gameX + 50 - bird.x;
+  }
+
+  // canvas always show [-50; 430] ony-axis
+  function cameraY (gameY) {
+    return 600 - (gameY + 50);
+  }
+
+  function camera (gameP) {
+    return {x: cameraX(gameP.x), y: cameraY(gameP.y)};
+  }
+
+
+  function Bird (x, y, speed) {
+    this.x = x;
+    this.y = y;
+    this.size = 15;
+
+    this.addToWorld = function () {
+      window.mBird =  Bodies.circle(this.x + 200, cameraY(this.y), this.size, { restitution: 0, friction: .000, density: .001, frictionAir: .001 });
+      World.add(engine.world, mBird);
+    }
+
+    this.addToWorld();
+  }
+
+  function Hill (width, height, x0, y0) {
+    this.width = width;
+    this.height = height;
+    this.x0 = x0;
+    this.y0 = y0;
+    this.f = function (x) { return height * (Math.sin( Math.PI * ((x-x0)/( width/2 ) - 0.5) ) + 1) / 2; }
+
+    this.addToWorld = function () {
+       for (var i = 0; i < this.width/sliceSize; i++) {
+        var x0 = this.x0 + i*sliceSize,
+            y0 = this.f(x0),
+            x1 = x0 + sliceSize,
+            y1 = this.f(x1);
+
+        World.add(engine.world, new Slice({x: x0, y: y0}, {x: x1, y: y1}));
+      }
+    }
+
+    this.addToWorld();
+  }
+
+  function generateHills (amount, x0, y0) {
+    var hills = [];
+
+    for (var i = 0; i < amount; i++) {
+      // Hills are all 200 width and 30, 40, 50, 60 or 70 high
+      var hill = new Hill(200, 30 + Math.round(Math.random()*4) * 15, x0, y0);
+      hills.push(hill);
+      x0 += hill.width;
+      y0 += hill.f(hill.width);
+    }
+
+    if (amount === 1)
+      return hills[0];
+
+    return hills;
+  }
+
+  function getHill (x) {
+    for (var i = 0; i < hills.length; i++) {
+      var hill = hills[i];
+      if (hill.x0 <= x && hill.x0 + hill.width > x)
+        return hill;
+    }
+
+    return undefined;
+  }
+
+  function appendHill () {
+    var lastHill = hills[hills.length-1],
+        x0 = lastHill.x0 + lastHill.width,
+        y0 = lastHill.y0;
+
+    hills.push(generateHills(1, x0, y0));
+  }
+
+  function checkHills () {
+    var newHills = [];
+    for (var i = 0; i < hills.length; i++) {
+      var hill = hills[i];
+      if (hill.x0 + hill.width > bird.x-55)
+        newHills.push(hill);
+    }
+    hills = newHills;
+    if (hills[hills.length-1].x0 < bird.x + 800)
+      appendHill();
+  }
+
+  window.isPressed = false;
+
+  document.addEventListener('keydown', function (e) {
+    window.isPressed = true;
+  });
+
+  document.addEventListener('keyup', function (e) {
+    window.isPressed = false;
+  });
+
+  window.setTimeout(init, 1000);
+
+  </script>
+</body>
+</html>

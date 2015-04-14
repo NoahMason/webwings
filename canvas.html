@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<head>
+  <title>Play Web Wings</title>
+  <style type="text/css">
+    body {
+      margin: 0;
+      padding: 0;
+    }
+
+    #screen {
+      background-color: rgba(34, 34, 34, 1);
+    }
+  </style>
+</head>
+<body>
+  <canvas id="screen">
+  </canvas>
+
+  <script type="text/javascript">
+  var canvas = document.getElementById('screen')
+      canvasContext = canvas.getContext('2d');
+
+  canvas.width = 960;
+  canvas.height = 480;
+
+  var hills = [],
+      bird = {};
+
+  function init () {
+    bird = new Bird(0, 300, {x: 1, y: 0});
+    hills = generateHills(5, 0, 20);
+    Loop.play();
+  }
+
+  function draw () {
+    canvasContext.clearRect(0, 0, canvas.width, canvas.height);
+    drawHills();
+    drawBird();
+  }
+
+  function drawBird () {
+    canvasContext.beginPath();
+    canvasContext.arc(cameraX(bird.x), cameraY(bird.y), bird.size, 0, 2 * Math.PI, false);
+    canvasContext.fillStyle = "white";
+    canvasContext.fill();
+    canvasContext.lineWidth = 2;
+    canvasContext.strokeStyle = "blue";
+    canvasContext.stroke();
+  }
+  
+  var sliceSize = 5;
+
+  function drawHills () {
+    for (var j = 0; j < hills.length; j++) {
+      var hill = hills[j];
+      for (var i = 0; i < hill.width/sliceSize; i++) {
+        var x = hill.x0 + i*sliceSize;
+
+        canvasContext.beginPath();
+        canvasContext.moveTo(cameraX(x), cameraY(hill.f(x)));
+        canvasContext.lineTo(cameraX(x + sliceSize), cameraY(hill.f(x + sliceSize)));
+        canvasContext.lineTo(cameraX(x + sliceSize), cameraY(-50));
+        canvasContext.lineWidth = 2;
+        canvasContext.strokeStyle = "red";
+        canvasContext.stroke();
+      }
+    }
+
+  }
+
+  // canvas spans from {-20, -50} to {940, 430} at first
+  // canvas always keeps the bird at 50 from left side
+  function cameraX (gameX) {
+    return gameX + 50 - bird.x;
+  }
+
+  // canvas always show [-50; 430] ony-axis
+  function cameraY (gameY) {
+    return canvas.height - (gameY + 50);
+  }
+
+  function camera (gameP) {
+    return {x: cameraX(gameP.x), y: cameraY(gameP.y)};
+  }
+
+
+  function Bird (x, y, speed) {
+    this.x = x;
+    this.y = y;
+    this.speed = speed;
+    this.size = 10;
+    this.mass = .5;
+
+    // physics constants
+    this.restitution = 0; //0 = pas de rebond. -0.7 = 70% de rebond;
+    this.A = Math.PI * Math.pow(this.size, 2) / (10000); // m^2
+    var Cd = 0.47; // Dimensionless
+    var rho = 1.22; // kg / m^3
+    var ag = 9.81;  // m / s^2
+
+    // volé ici : http://jsfiddle.net/bkanber/39jrM/light/
+    // et là : http://burakkanber.com/blog/modeling-physics-javascript-gravity-and-drag/
+    this.applyGravity = function (delta) {
+
+      // FIRST: simulate for free-fall
+
+      // Dragging forces (air resistance mostly)
+      var Fx = -0.5 * Cd * this.A * rho * Math.pow(this.speed.x, 2);
+      var Fy = -0.5 * Cd * this.A * rho * Math.pow(this.speed.y, 2);
+      
+      // Calculate acceleration ( F = ma )
+      var ax = Fx / this.mass;
+      var ay = ag + (Fy / this.mass);
+      // Integrate to get velocity
+      this.speed.x += ax*delta;
+      this.speed.y += ay*delta;
+      
+      // Integrate to get position
+      this.x += this.speed.x*delta*100;
+      this.y -= this.speed.y*delta*100;
+
+
+      // SECOND: if collision, then appliquer la reaction du support etc.
+
+      var newHill = getHill(this.x);
+      var d = this.distToHill(newHill);
+      
+      if (d < this.size || newHill.f(this.x) > this.y) {
+        // rebound
+        this.speed.y *= this.restitution;
+
+        // prevent the ball from going through the ground
+        this.y = newHill.f(this.x) + this.size;
+
+        // accelerate according to the support reaction
+        if (this.x > newHill.x0 + newHill.width * 0.6) {
+          this.speed.x *= 1.2;
+        }
+      }
+
+      // check minimum x speed
+      if (this.speed.x < 1)
+        this.speed.x = 1;
+    }
+
+    this.distToHill = function (hill) {
+      function pDistance (p, v, w) {
+        var x = p.x,
+            y = p.y,
+            x1 = v.x,
+            y1 = v.y,
+            x2 = w.x,
+            y2 = w.y;
+
+        var A = x - x1;
+        var B = y - y1;
+        var C = x2 - x1;
+        var D = y2 - y1;
+
+        var dot = A * C + B * D;
+        var len_sq = C * C + D * D;
+        var param = -1;
+        if (len_sq != 0) //in case of 0 length line
+            param = dot / len_sq;
+
+        var xx, yy;
+
+        if (param < 0) {
+          xx = x1;
+          yy = y1;
+        }
+        else if (param > 1) {
+          xx = x2;
+          yy = y2;
+        }
+        else {
+          xx = x1 + param * C;
+          yy = y1 + param * D;
+        }
+
+        var dx = x - xx;
+        var dy = y - yy;
+        return Math.sqrt(dx * dx + dy * dy);
+      }
+
+      return pDistance(this, {x: this.x, y: hill.f(this.x)}, {x: this.x + 1, y: hill.f(this.x+1)});
+    }
+  }
+
+  function Hill (width, height, x0, y0) {
+    this.width = width;
+    this.height = height;
+    this.x0 = x0;
+    this.y0 = y0;
+    this.f = function (x) { return height * (Math.sin( Math.PI * (x/( width/2 ) - 0.5) ) + 1) / 2; }
+  }
+
+  function generateHills (amount, x0, y0) {
+    var hills = [];
+
+    for (var i = 0; i < amount; i++) {
+      // Hills are all 200 width and 30, 40, 50, 60 or 70 high
+      var hill = new Hill(200, 30 + Math.round(Math.random()*4) * 15, x0, y0);
+      hills.push(hill);
+      x0 += hill.width;
+      y0 += hill.f(hill.width);
+    }
+
+    if (amount === 1)
+      return hills[0];
+
+    return hills;
+  }
+
+  function getHill (x) {
+    for (var i = 0; i < hills.length; i++) {
+      var hill = hills[i];
+      if (hill.x0 <= x && hill.x0 + hill.width > x)
+        return hill;
+    }
+
+    return { f: function () { return 0 }}
+  }
+
+  function appendHill () {
+    var lastHill = hills[hills.length-1],
+        x0 = lastHill.x0 + lastHill.width,
+        y0 = lastHill.y0;
+
+    hills.push(generateHills(1, x0, y0));
+  }
+
+  function checkHills () {
+    var newHills = [];
+    for (var i = 0; i < hills.length; i++) {
+      var hill = hills[i];
+      if (hill.x0 + hill.width > bird.x-55)
+        newHills.push(hill);
+    }
+    hills = newHills;
+    if (hills[hills.length-1].x0 < bird.x + 800)
+      appendHill();
+  }
+
+  var Loop = {
+    play: function() {
+      Loop.then = Date.now();
+      Loop.frame();
+    },
+
+    pause: function() {
+      window.cancelAnimationFrame(Loop.animationFrame);
+    },
+
+    frame: function() {
+      Loop.setDelta();
+      Loop.update();
+      Loop.render();
+      Loop.animationFrame = window.requestAnimationFrame(Loop.frame);
+    },
+   
+    setDelta: function() {
+      Loop.now = Date.now();
+      Loop.delta = (Loop.now - Loop.then) / 1000; // seconds since last frame
+      Loop.then = Loop.now;
+    },
+   
+    update: function() {
+      // Update values
+      bird.applyGravity(Loop.delta);
+      checkHills();
+    },
+   
+    render: function() {
+      // Render updates to browser (draw to canvas, update css, etc.)
+      draw();
+    }
+  };
+
+  window.setTimeout(init, 1000);
+
+  </script>
+</body>
+</html>

@@ -1,0 +1,73 @@
+<html>
+<head>
+  <title>Play Web Wings</title>
+  <script type="text/javascript" src="matter.js"></script>
+  <style type="text/css">
+   
+  </style>
+</head>
+<body>
+  <div id="screen">
+  </div>
+  <script type="text/javascript">
+    var Engine = Matter.Engine,
+        World = Matter.World,
+        Body = Matter.Body,
+        Bodies = Matter.Bodies,
+        Events = Matter.Events,
+        MouseConstraint = Matter.MouseConstraint;
+
+    // create a Matter.js engine
+    var engine = Engine.create(document.getElementById('screen'));
+
+    var hillSliceSize = 10;
+
+    init();
+
+    function init () {
+      // run the engine
+      Engine.run(engine);
+    }
+
+    function addHill (previousHill) {
+      if (!previousHill) {
+        var hill = new Hill((6 + Math.round(Math.random()*3)*2), 80+Math.round(Math.random()*80), {x: Math.round(Math.random()*20), y: 50+Math.round(Math.random()*30)});
+      }
+
+      for(var i = 0; i < hill.slices; i++) {
+        var slice = hillSlice(hill, i);
+        console.log(slice);
+        World.add(engine.world, slice);
+      }
+    }
+
+    function Hill (slices, height, p0) {
+      this.slices = slices;
+      this.height = height;
+      this.p0 = p0;
+    }
+
+    function hillSlice (hill, slice) {
+      return Body.create({
+        isStatic: true, 
+        position: { x: hillSliceSize*slice + hill.p0.x, y: hill.p0.y }, 
+        vertices: [
+          { x: hillSliceSize, y: 0 }, 
+          { x: hillSliceSize, y: hill.p0.y + hill.height * Math.sin(2*Math.PI/(hill.slices * slice)) }, 
+          { x:0, y: hill.p0.y + hill.height * Math.sin(2*Math.PI/(hill.slices * (slice-1))) }
+        ]
+      })
+    }
+
+    // screen is 600x600, and at start is panned on [-20; 580] abscisse and [-50; 550] ordinate
+    function translateX (x) {
+      return x+20;
+    }
+
+    function translateY (y) {
+      return 550+y;
+    }
+
+  </script>
+</body>
+</html>

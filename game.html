@@ -1,0 +1,110 @@
+<html>
+<head>
+  <title>Play Web Wings</title>
+  <script type="text/javascript" src="matter.js"></script>
+  <style type="text/css">
+   
+  </style>
+</head>
+<body>
+  <div id="screen">
+  </div>
+  <script type="text/javascript">
+    var Engine = Matter.Engine,
+        World = Matter.World,
+        Body = Matter.Body,
+        Bodies = Matter.Bodies,
+        Events = Matter.Events,
+        MouseConstraint = Matter.MouseConstraint;
+
+    // number of lines for each [0, 100] interval
+    var __RESOLUTION__ = 20;
+
+    // create a Matter.js engine
+    var engine = Engine.create(document.getElementById('screen'));
+
+    init();
+
+    function init () {
+      generateTrack();
+      generateBird();
+      renderTrack();
+      renderBird();
+      
+      // run the engine
+      Engine.run(engine);
+    }
+
+    // fn: the curve function; interval: the first and last values of the segment;lines: amount of lines to approximate
+    // outputs an array of lines; a line is an array of two points; a point is {x, y}
+    function curveToLines (fn, interval, lines) {
+      if (lines < 1)
+        return [];
+
+      // if (lines == 1)
+      //   return [[{"x": interval[0], "y": fn(interval[0])}, {"x": interval[1], "y": fn(interval[1])}]];
+
+      var output = [],
+          x0 = interval[0];
+
+      for (var i = 1; i <= lines; i++) {
+        var x1 = i * ((interval[1] - interval[0]) / lines) + interval[0];
+        output.push([{"x": x0, "y": fn(x0)}, {"x": x1, "y": fn(x1)}]);
+        x0 = x1;
+      }
+
+      return output;
+    }
+
+    // line: an array of two points; a point is {x, y}
+    // outputs a Bodies.rectangle matching the segment
+    function segment (line) {
+      var p0 = line[0],
+          p1 = line[1];
+
+      var x = (p0.x + p1.x) / 2,
+          y = (p0.y + p1.y) / 2;
+
+      var dx = p1.x - p0.x,
+          dy = p1.y - p0.y;
+
+      var angle = Math.atan2(dy, dx);
+
+      return Bodies.rectangle(translateX(x), translateY(y), Math.sqrt(Math.pow(dx, 2) + Math.pow(dy, 2)), 10, {isStatic: true, angle: angle})
+    }
+
+    function generateTrack () {
+      var track = curveToLines(function (x) {
+            return 25*Math.cos(10*x);
+          }, [0, 500], 5*__RESOLUTION__);
+
+      for (var i = 0; i < track.length; i++) {
+        var seg = segment(track[i]);
+        World.add(engine.world, seg);
+      }
+    }
+    
+    function generateBird () {
+      
+    }
+    
+    function renderTrack () {
+      
+    }
+
+    function renderBird () {
+      
+    }
+
+    // screen is 600x600, and at start is panned on [-20; 580] abscisse and [-50; 550] ordinate
+    function translateX (x) {
+      return x+20;
+    }
+
+    function translateY (y) {
+      return 550+y;
+    }
+
+  </script>
+</body>
+</html>

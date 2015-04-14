@@ -1,0 +1,103 @@
+<html>
+<head>
+  <title>Web Wings</title>
+  <script type="text/javascript" src="matter.js"></script>
+  <style type="text/css">
+   
+  </style>
+</head>
+<body>
+  <div id="screen">
+  </div>
+  <script type="text/javascript">
+    var Engine = Matter.Engine,
+        World = Matter.World,
+        Body = Matter.Body,
+        Bodies = Matter.Bodies,
+        Events = Matter.Events,
+        MouseConstraint = Matter.MouseConstraint;
+
+    var __DEFINITION = 50;
+
+    // create a Matter.js engine
+    var engine = Engine.create(document.getElementById('screen'));
+
+    // create two boxes and a ground
+    var bird = Bodies.circle(150, 100, 30, { restitution: .5, friction: .0001, density: .0005 });
+    var ground = Bodies.rectangle(400, 630, 810, 100, { isStatic: true });
+
+    // add all of the bodies to the world
+    World.add(engine.world, [bird, ground]);
+
+    var mouseConstraint = MouseConstraint.create(engine);
+    World.add(engine.world, mouseConstraint);
+
+    var slope = Segment(-Math.PI/2);
+    for (var i = 0; i < 41; i++) {
+      World.add(engine.world, slope);
+      slope = Segment(slope.angle - Math.PI/20, anchorFromRectangle(slope));
+    }
+
+    function anchorFromRectangle (rect) {
+      var th1 = rect.angle - Math.atan2(10, __DEFINITION) + Math.PI,
+          x1 = Math.cos(th1) * Math.sqrt(Math.pow(__DEFINITION/2, 2) + Math.pow(10/2, 2)) + rect.position.x,
+          y1 = Math.sin(th1) * Math.sqrt(Math.pow(__DEFINITION/2, 2) + Math.pow(10/2, 2)) + rect.position.y;
+
+      return {x: x1, y: y1}
+    }
+
+    function centerFromCorner (x, y, th) {
+      var th1 = th + Math.atan2(10, __DEFINITION) + Math.PI,
+          x1 = Math.cos(th1) * Math.sqrt(Math.pow(__DEFINITION/2, 2) + Math.pow(10/2, 2)),
+          y1 = Math.sin(th1) * Math.sqrt(Math.pow(__DEFINITION/2, 2) + Math.pow(10/2, 2));
+
+      return {x: x1, y: y1}
+    }
+
+    function Segment (angle, anchor) {
+      if (typeof anchor === 'undefined') {
+        anchor = {x: 120, y: 180}
+      }
+
+      var center = centerFromCorner(0, 0, angle),
+          x = anchor.x + center.x,
+          y = anchor.y + center.y;
+
+      return Bodies.rectangle(x, y, __DEFINITION, 10, {isStatic: true, angle: angle})
+    }
+
+    // run the engine
+    Engine.run(engine);
+
+    Events.on(engine, 'tick', function() {
+      if (mousedown) {
+        Body.applyForce(bird, {x: 0, y: 0}, {x: 0, y: -0.005})
+      }
+
+      if (direction) {
+        var coeff = direction === 'right' ? 1 : -1
+        Body.applyForce(bird, {x: 0, y: 0}, {x: coeff * 0.005, y: 0})
+      }
+    });
+
+    Events.on(mouseConstraint, 'mousedown', function() {
+      window.mousedown = true
+    });
+
+    Events.on(mouseConstraint, 'mouseup', function() {
+      window.mousedown = false
+    });
+
+    document.addEventListener('keydown', function (e) {
+      window.direction = e.keyCode === 39 ? 'right' : e.keyCode === 37 ? 'left' : null
+    }, false)
+
+    document.addEventListener('keyup', function (e) {
+      window.direction = null
+    }, false)
+
+    window.mousedown = false
+    window.direction = null
+  </script>
+</body>
+</html>
